@@ -1,25 +1,26 @@
 # coding: utf-8
-import hashlib
 import os
 import sys
 from datetime import datetime
 
 import leancloud
-import requests
 from flask import Flask, jsonify, request
 from flask_sockets import Sockets
 from leancloud import LeanCloudError
-from weixin import Weixin
+from weixin import WeixinMsg
 
 from views.todos import todos_view
 
 app = Flask(__name__)
 sockets = Sockets(app)
-
+app.config.from_object(dict(
+    WEIXIN_APP_ID=os.environ.get('WEIXIN_APP_ID'),
+    WEIXIN_APP_SECRET=os.environ.get('WEIXIN_APP_SECRET'),
+    WEIXIN_TOKEN=os.environ.get('WEIXIN_TOKEN'),))
 # routing
 app.register_blueprint(todos_view, url_prefix='/todos')
-weixin = Weixin()
-weixin.init_app(app)
+
+msg = WeixinMsg(os.environ.get('WEIXIN_TOKEN'))
 
 
 @app.route('/time')
@@ -121,44 +122,17 @@ def todos():
             return jsonify(success=True)
 
 
-def check_signature(signature, token, timestamp, nonce):
-    tmp_list = [token, timestamp, nonce]
-    tmp_list.sort()
-    tmp_str = ''.join(tmp_list)
-    tmp_str = hashlib.sha1(tmp_str.encode('utf-8')).hexdigest()
-    return tmp_str == signature
-
-
-@app.route('/wechat/validate', methods=['GET'])
-def validate():
-    signature = request.args.get('signature', '')
-    timestamp = request.args.get('timestamp', '')
-    nonce = request.args.get('nonce', '')
-    echostr = request.args.get('echostr', '')
-    token = os.environ['WEIXIN_TOKEN']
-    if not signature or not timestamp or not nonce or not echostr:
-        return 'invalid', 400
-
-    if not check_signature(signature, token, timestamp, nonce):
-        return 'invalid', 400
-
-    return echostr
-
-
-def get_access_token(app_id, app_secret):
-    url = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s' % (
-        app_id, app_secret)
-    r = requests.get(url)
-    if r.status_code != 200:
-        return None
-    return r.json().get('access_token')
-
-
 @app.route('/wechat/access_token', methods=['GET'])
 def access_token():
-    app_id = os.environ['WEIXIN_APP_ID']
-    app_secret = os.environ['WEIXIN_APP_SECRET']
-    return get_access_token(app_id, app_secret)
+    return msg.access_token
 
 
-app.add_url_rule("/", view_func=weixin.view_func)
+app.add_url_rule("/", view_func=msg.view_func)
+
+
+@msg.all
+def all(**kwargs):
+    """
+    监听所有没有更特殊的事件
+    """
+    return msg.reply(kwargs['sender'], sender=kwargs['receiver'], content='all')
