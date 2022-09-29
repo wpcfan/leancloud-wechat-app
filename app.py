@@ -7,20 +7,19 @@ import leancloud
 from flask import Flask, jsonify, request
 from flask_sockets import Sockets
 from leancloud import LeanCloudError
-from weixin import WeixinMsg
+from wechatpy import create_reply, parse_message
+from wechatpy.exceptions import InvalidSignatureException
+from wechatpy.replies import ArticlesReply
+from wechatpy.utils import check_signature
 
 from views.todos import todos_view
 
+# 处理异常情况或忽略
+
 app = Flask(__name__)
 sockets = Sockets(app)
-app.config.from_object(dict(
-    WEIXIN_APP_ID=os.environ.get('WEIXIN_APP_ID'),
-    WEIXIN_APP_SECRET=os.environ.get('WEIXIN_APP_SECRET'),
-    WEIXIN_TOKEN=os.environ.get('WEIXIN_TOKEN'),))
 # routing
 app.register_blueprint(todos_view, url_prefix='/todos')
-
-msg = WeixinMsg(os.environ.get('WEIXIN_TOKEN'))
 
 
 @app.route('/time')
@@ -122,42 +121,51 @@ def todos():
             return jsonify(success=True)
 
 
-@app.route('/wechat/access_token', methods=['GET'])
-def access_token():
-    return msg.access_token
+@app.route('/', methods=['GET'])
+def msg_validate():
+    signature = request.args.get('signature', '')
+    timestamp = request.args.get('timestamp', '')
+    nonce = request.args.get('nonce', '')
+    echostr = request.args.get('echostr', '')
+    token = os.environ.get('WEIXIN_TOKEN')
+    print("signature: %s, timestamp: %s, nonce: %s, echostr: %s, token: %s" % (
+        signature, timestamp, nonce, echostr, token))
+    try:
+        check_signature(token, signature, timestamp, nonce)
+    except InvalidSignatureException:
+        return 'Invalid signature'
+    return echostr
 
 
-app.add_url_rule("/", view_func=msg.view_func)
-
-
-@msg.all
-def all(**kwargs):
-    """
-    监听所有没有更特殊的事件
-    """
-    return msg.reply(kwargs['sender'], sender=kwargs['receiver'], content='click')
-
-
-@msg.text()
-def hello(**kwargs):
-    """
-    监听所有文本消息
-    """
-    return msg.reply(kwargs['sender'], type='news', sender=kwargs['receiver'], content='click')
-
-
-@msg.text("help")
-def world(**kwargs):
-    """
-    监听help消息
-    """
-    return dict(content="hello world!")
-
-
-@msg.subscribe
-def subscribe(**kwargs):
-    """
-    监听订阅消息
-    """
-    print(kwargs)
-    return "欢迎订阅我们的公众号"
+@app.route('/', methods=['POST'])
+def msg_reply():
+    signature = request.args.get('signature', '')
+    timestamp = request.args.get('timestamp', '')
+    nonce = request.args.get('nonce', '')
+    token = os.environ.get('WEIXIN_TOKEN')
+    try:
+        check_signature(token, signature, timestamp, nonce)
+    except InvalidSignatureException:
+        return 'Invalid signature'
+    msg = parse_message(request.data)
+    if msg.type == 'text':
+        if msg._data['Content'] == 'hello':
+            reply = ArticlesReply(message=msg, articles=[
+                {
+                    'title': u'标题1',
+                    'description': u'描述1',
+                    'url': u'http://www.qq.com',
+                    'image': 'http://img.qq.com/1.png',
+                },
+                {
+                    'title': u'标题2',
+                    'description': u'描述2',
+                    'url': u'http://www.qq.com',
+                    'image': 'http://img.qq.com/1.png',
+                },
+            ])
+        else:
+            reply = create_reply(msg.content, msg)
+    else:
+        reply = create_reply('Sorry, can not handle this for now', msg)
+    return reply.render()
