@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>articles</title>
+    <link rel="stylesheet" href="/static/style.css" type="text/css" />
+  </head>
+  <body>
+    <div id="container">
+      <h1>{{ title }}</h1>
+      <form action="/articles" method="POST">
+        <input type="text" name="title" />
+        <input type="text" name="description" />
+        <input type="text" name="url" />
+        <input type="text" name="image" />
+        <input type="submit" value="New article" />
+      </form>
+      <ul>
+        {% for article in articles %}
+        <li>{{ article.get('title') }}</li>
+        <li>{{ article.get('description') }}</li>
+        <li>{{ article.get('url') }}</li>
+        <li>{{ article.get('image') }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div id="notes">
+      <h2>REST API</h2>
+      <pre>
+        GET /api/articles
+        POST /api/articles {"title": "ARTICLE CONTENT", "description": "ARTICLE DESCRIPTION", "url": "ARTICLE URL", "image": "ARTICLE IMAGE URL"}
+      </pre>
+    </div>
+  </body>
+</html>

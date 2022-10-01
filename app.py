@@ -1,7 +1,5 @@
 # coding: utf-8
 import os
-import sys
-from datetime import datetime
 
 import leancloud
 from flask import Flask, jsonify, request
@@ -12,25 +10,14 @@ from wechatpy.exceptions import InvalidSignatureException
 from wechatpy.replies import ArticlesReply
 from wechatpy.utils import check_signature
 
-from views.todos import todos_view
+from views.articles import articles_view
 
 # 处理异常情况或忽略
 
 app = Flask(__name__)
 sockets = Sockets(app)
 # routing
-app.register_blueprint(todos_view, url_prefix='/todos')
-
-
-@app.route('/time')
-def time():
-    return str(datetime.now())
-
-
-@app.route('/version')
-def print_version():
-    import sys
-    return sys.version
+app.register_blueprint(articles_view, url_prefix='/articles')
 
 
 @sockets.route('/echo')
@@ -87,38 +74,48 @@ def handle_bad_request(error):
     return response
 
 
-@app.route('/api/python-version', methods=['GET'])
-def python_version():
-    return jsonify({"python-version": sys.version})
+@app.route('/api/articles', methods=['POST'])
+def add_article():
+    try:
+        title = request.json['title']
+        description = request.json['description']
+        url = request.json['url']
+        image = request.json['image']
+    except KeyError:
+        raise BadRequest(
+            '''receives malformed POST title (proper schema: '
+            {
+                "title": "ARTICLE TITLE", 
+                "description": "ARTICLE DESCRIPTION",
+                "url": "ARTICLE URL",
+                "image": "ARTICLE IMAGE URL"
+            }
+            ')''')
+    article = leancloud.Object.extend('Article')()
+    article.set('title', title)
+    article.set('description', description)
+    article.set('url', url)
+    article.set('image', image)
+    try:
+        article.save()
+    except LeanCloudError as e:
+        raise BadGateway(e.error, e.code)
+    else:
+        return jsonify(success=True)
 
 
-@app.route('/api/todos', methods=['GET', 'POST'])
-def todos():
-    if request.method == 'GET':
-        try:
-            todo_list = leancloud.Query(leancloud.Object.extend(
-                'Todo')).descending('createdAt').find()
-        except LeanCloudError as e:
-            if e.code == 101:  # Class does not exist on the cloud.
-                return jsonify([])
-            else:
-                raise BadGateway(e.error, e.code)
+@app.route('/api/articles', methods=['GET'])
+def get_articles():
+    try:
+        article_list = leancloud.Query(leancloud.Object.extend(
+            'Article')).descending('createdAt').find()
+    except LeanCloudError as e:
+        if e.code == 101:  # Class does not exist on the cloud.
+            return jsonify([])
         else:
-            return jsonify([todo.dump() for todo in todo_list])
-    elif request.method == 'POST':
-        try:
-            content = request.get_json()['content']
-        except KeyError:
-            raise BadRequest(
-                '''receives malformed POST content (proper schema: '{"content": "TODO CONTENT"}')''')
-        todo = leancloud.Object.extend('Todo')()
-        todo.set('content', content)
-        try:
-            todo.save()
-        except LeanCloudError as e:
             raise BadGateway(e.error, e.code)
-        else:
-            return jsonify(success=True)
+    else:
+        return jsonify([article.dump() for article in article_list])
 
 
 @app.route('/', methods=['GET'])
