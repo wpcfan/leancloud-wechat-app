@@ -93,12 +93,13 @@ def add_article():
                 "keywords": "ARTICLE KEYWORDS"
             }
             ')''')
+    mappedKeywords = map(lambda keyword: keyword.lower(), keywords)
     article = leancloud.Object.extend('Article')()
     article.set('title', title)
     article.set('description', description)
     article.set('url', url)
     article.set('image', image)
-    article.set('keywords', keywords)
+    article.set('keywords', list(mappedKeywords))
     try:
         article.save()
     except LeanCloudError as e:
@@ -148,10 +149,10 @@ def msg_reply():
     except InvalidSignatureException:
         return 'Invalid signature'
     msg = parse_message(request.data)
-    if msg.type == 'text':
+    if msg.type == 'text' and msg.content is not None:
         query = leancloud.Query(leancloud.Object.extend(
             'Article')).descending('createdAt')
-        query.contains('keywords', msg.content)
+        query.contains('keywords', msg.content.lower())
         article_list = query.find()
         if len(article_list) > 0:
             reply = ArticlesReply(message=msg, articles=article_list)
