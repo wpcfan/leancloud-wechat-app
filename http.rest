@@ -5,7 +5,8 @@ Content-Type: application/json
   "title": "My first article",
   "description": "This is my first article",
   "url": "http://example.com/articles/1",
-  "image": "http://example.com/articles/1/image.jpg"
+  "image": "http://example.com/articles/1/image.jpg",
+  "keywords": ["first", "article"]
 }
 
 ###

@@ -81,6 +81,7 @@ def add_article():
         description = request.json['description']
         url = request.json['url']
         image = request.json['image']
+        keywords = request.json['keywords']
     except KeyError:
         raise BadRequest(
             '''receives malformed POST title (proper schema: '
@@ -88,7 +89,8 @@ def add_article():
                 "title": "ARTICLE TITLE", 
                 "description": "ARTICLE DESCRIPTION",
                 "url": "ARTICLE URL",
-                "image": "ARTICLE IMAGE URL"
+                "image": "ARTICLE IMAGE URL",
+                "keywords": "ARTICLE KEYWORDS"
             }
             ')''')
     article = leancloud.Object.extend('Article')()
@@ -96,6 +98,7 @@ def add_article():
     article.set('description', description)
     article.set('url', url)
     article.set('image', image)
+    article.set('keywords', keywords)
     try:
         article.save()
     except LeanCloudError as e:
@@ -146,21 +149,12 @@ def msg_reply():
         return 'Invalid signature'
     msg = parse_message(request.data)
     if msg.type == 'text':
-        if msg._data['Content'] == 'hello':
-            reply = ArticlesReply(message=msg, articles=[
-                {
-                    'title': u'标题1',
-                    'description': u'描述1',
-                    'url': u'http://www.qq.com',
-                    'image': 'http://img.qq.com/1.png',
-                },
-                {
-                    'title': u'标题2',
-                    'description': u'描述2',
-                    'url': u'http://www.qq.com',
-                    'image': 'http://img.qq.com/1.png',
-                },
-            ])
+        query = leancloud.Query(leancloud.Object.extend(
+            'Article')).descending('createdAt')
+        query.contains('keywords', msg.content)
+        article_list = query.find()
+        if len(article_list) > 0:
+            reply = ArticlesReply(message=msg, articles=article_list)
         else:
             reply = create_reply(msg.content, msg)
     else:
