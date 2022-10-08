@@ -29,8 +29,14 @@ def add():
     description = request.form['description']
     url = request.form['url']
     image = request.form['image']
-    article = Article(title=title, description=description,
-                      url=url, image=image)
+    keywords = request.form['keywords']
+    article = Article(
+        title=title, 
+        description=description,
+        url=url, 
+        image=image,
+        keywords=keywords
+    )
     try:
         article.save()
     except LeanCloudError as e:
